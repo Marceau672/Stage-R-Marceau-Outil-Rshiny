@@ -1,6 +1,6 @@
 # Stage R Marceau, Outil Rshiny
 
-Il y a deux fichier qui n'ont pas pu être joint dans les fichiers entreposés,
+Il y a deux fichiers qui n'ont pas pu être joints dans les fichiers entreposés : 
 
 Le premier fichier concerne les données de recensement de l'INSEE fourni par Progedo qui n'est pas de l'open data.
 
