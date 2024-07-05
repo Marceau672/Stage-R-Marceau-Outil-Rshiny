@@ -44,7 +44,7 @@ create_map <- function(region_data, variable, title, palette_colors) {
 
 # Interface utilisateur de l'application Shiny
 ui <- fluidPage(
-  titlePanel("Visualisation d'indicateur comptable lié à la forêt"), # Titre
+  titlePanel("Visualisation d'indicateurs comptables liés à la forêt"), # Titre
   sidebarLayout( 
     sidebarPanel(
       selectInput("variable", "Sélectionner une variable:",
@@ -73,9 +73,15 @@ ui <- fluidPage(
                  plotOutput("graphique") # Appartion de notre graphique pour voir l'évolution des régions sur une période choisi
         ),
         tabPanel('Commune',
-                 selectizeInput("commune", "Saisir le nom de la commune :", choices = unique(don$LBUDG), multiple = FALSE, options = list(
-                   placeholder = "Commencez à taper pour sélectionner" # Texte dans le widget ou se fera l'input de l'utilisateur
-                 )),
+                 selectizeInput(
+                   inputId = "commune", 
+                   label = "Saisir le nom de la commune :", 
+                   choices = sort(unique(don$LBUDG)), 
+                   multiple = FALSE, 
+                   options = list(
+                     placeholder = "Commencez à taper pour sélectionner"
+                   )
+                 ),
                  tableOutput("table_moyennes") # Apparition de notre tableau de moyennes française et de la commnue
         ),
         tabPanel('Méta-données',
@@ -86,8 +92,8 @@ ui <- fluidPage(
                             href = "https://data.economie.gouv.fr/explore/?sort=modified&refine.publisher=DGFIP&q=Balances+comptables+communes")# HREF pour lien hypertexte
                    ),
                    tags$p(
-                     tags$a("- Progedo, pour les données de recensement", 
-                            href = "https://www.progedo.fr/") # HREF pour lien hypertexte
+                     tags$a("- Progedo, pour la base de données communales du recensement de la population (BDCOM, INSEE) obtenue via Progedo/Réseau Quetelet", 
+                            href = "https://www.progedo.fr/donnees/quetelet-progedo-diffusion/") # HREF pour lien hypertexte
                    ),
                    tags$p(),
                    tags$p(
@@ -95,7 +101,11 @@ ui <- fluidPage(
                             href="https://foret.ign.fr/catalogue/649adf3b99b2a690a04ef2c7")) # HREF pour lien hypertexte
                  ),
                  tags$p(),
-                 tags$p("Traitement réalisé par Finance Marceau dans le cadre d'un stage réalisé au sein du Bureau d'Économie Théorique et Appliqué durant le mois de Juin-Juillet 2024."),
+                 tags$p("Traitement réalisé par Finance Marceau dans le cadre d'un stage réalisé au sein du Bureau d'Économie Théorique et Appliqué durant les mois de Juin-Juillet 2024."),
+        ),
+        tabPanel("Statistiques générales à l'échelle nationale",
+                 plotlyOutput("pie_chart_expenses"),
+                 plotlyOutput("pie_chart_revenues")
         )
       )
     )
@@ -142,8 +152,8 @@ server <- function(input, output, session) {
     "Ventes_Bois" = "Ventes de Bois en euros",
     "Affouage" = "Affouage en euros",
     "Reserves_Finance" = "Réserves Financières en euros",
-    "Part_Dépenses_Foret" = "Part des dépenses forestières moyenne dans les dépenses totales (%)",
-    "Part_Recettes_Foret" = "Part des recettes forestières moyenne dans les recettes totales (%)",
+    "Part_Dépenses_Foret" = "Poids moyen des dépenses forestières dans les dépenses totales (%)",
+    "Part_Recettes_Foret" = "Poids moyen des recettes forestières dans les recettes totales (%)",
     "Recettes_par_hectares" = "Recettes par hectare de forêt en euros",
     "Depenses_par_hectares" = "Dépenses par hectare de forêt en euros"
   )
@@ -209,15 +219,15 @@ server <- function(input, output, session) {
       filter(Nom_Region %in% input$regions, Année %in% input$annee) %>%
       group_by(Nom_Region, Année) %>%
       summarise(mean_value = mean(!!sym(input$variable), na.rm = TRUE))
-    # Si aucune donnée  disponible sur les années sélectionné alors Notification d'erreur
+    # Si aucune donnée  disponible sur les années sélectionné alors notification d'erreur
     if (nrow(region_data) == 0) {
       showNotification("Erreur : Aucune donnée disponible pour les années et les régions sélectionnées.", type = "error")
       return(NULL)
     }
     
     ggplot(region_data, aes(x = as.factor(Année), y = mean_value, color = Nom_Region, group = Nom_Region)) +
-      geom_point(size = 3) +
-      geom_line(size = 1) +
+      geom_point(size = 2) +
+      geom_line(size = 1.5) +
       labs(x = "Année", y = variable_labels[[input$variable]], title = paste("Évolution moyenne de", variable_labels[[input$variable]])) +
       theme_minimal() +
       scale_color_discrete(name = "Région")
@@ -255,7 +265,38 @@ server <- function(input, output, session) {
     
     return(moyennes)
   })
+  output$pie_chart_expenses <- renderPlotly({
+    don %>%
+      filter(Année %in% input$annee) %>%
+      summarise(
+        Depenses_1 = sum(Dépenses_1, na.rm = TRUE),
+        Depenses_2 = sum(Dépenses_2, na.rm = TRUE),
+        Depenses_3 = sum(Dépenses_3, na.rm = TRUE)
+      ) %>%
+      plot_ly(labels = ~c("Dépenses strictement forestières", "Dépenses partiellement dédiées à la forêt", "Dépenses autres"),
+              values = ~c(Depenses_1, Depenses_2, Depenses_3),
+              type = 'pie',
+              textinfo = 'label+percent',
+              insidetextorientation = 'radial') %>%
+      layout(title = 'Répartition des dépenses')
+  })
   
+  # Création des graphiques en camembert pour les recettes
+  output$pie_chart_revenues <- renderPlotly({
+    don %>%
+      filter(Année %in% input$annee) %>%
+      summarise(
+        Recettes_1 = sum(Recettes_1, na.rm = TRUE),
+        Recettes_2 = sum(Recettes_2, na.rm = TRUE),
+        Recettes_3 = sum(Recettes_3, na.rm = TRUE)
+      ) %>%
+      plot_ly(labels = ~c("Recettes strictement forestières", "Recettes partiellement dédiées à la forêt", "Recettes autres"),
+              values = ~c(Recettes_1, Recettes_2, Recettes_3),
+              type = 'pie',
+              textinfo = 'label+percent',
+              insidetextorientation = 'radial') %>%
+      layout(title = 'Répartition des recettes')
+  })
 }
 
 # Lancer l'application Shiny
