@@ -3,6 +3,7 @@ library(dplyr)
 library(shiny)
 library(ggplot2)
 library(sf)
+library(plotly)
 
 # Définir le répertoire de travail
 setwd("C:/FIchier Projet R Marceau/Stage-R-Marceau")
@@ -104,8 +105,16 @@ ui <- fluidPage(
                  tags$p("Traitement réalisé par Finance Marceau dans le cadre d'un stage réalisé au sein du Bureau d'Économie Théorique et Appliqué durant les mois de Juin-Juillet 2024."),
         ),
         tabPanel("Statistiques générales à l'échelle nationale",
-                 plotlyOutput("pie_chart_expenses"),
-                 plotlyOutput("pie_chart_revenues")
+                 fluidRow(
+                   column(6, plotlyOutput("pie_chart_revenues")),
+                   column(6, plotlyOutput("pie_chart_expenses"))
+                   
+                 ),
+                 fluidRow(),
+                 fluidRow(
+                   column(6, plotlyOutput("bar_chart_revenues_per_hectare")),
+                   column(6, plotlyOutput("bar_chart_expenses_per_hectare"))
+                 )
         )
       )
     )
@@ -269,11 +278,11 @@ server <- function(input, output, session) {
     don %>%
       filter(Année %in% input$annee) %>%
       summarise(
-        Depenses_1 = sum(Dépenses_1, na.rm = TRUE),
-        Depenses_2 = sum(Dépenses_2, na.rm = TRUE),
-        Depenses_3 = sum(Dépenses_3, na.rm = TRUE)
+        Depenses_1 = round(sum(Dépenses_1, na.rm = TRUE),2),
+        Depenses_2 = round(sum(Dépenses_2, na.rm = TRUE),2),
+        Depenses_3 = round(sum(Dépenses_3, na.rm = TRUE),2)
       ) %>%
-      plot_ly(labels = ~c("Dépenses strictement forestières", "Dépenses partiellement dédiées à la forêt", "Dépenses autres"),
+      plot_ly(labels = ~c("Strictement forestières", "Partiellement dédiées à la forêt", "Autres"),
               values = ~c(Depenses_1, Depenses_2, Depenses_3),
               type = 'pie',
               textinfo = 'label+percent',
@@ -286,16 +295,62 @@ server <- function(input, output, session) {
     don %>%
       filter(Année %in% input$annee) %>%
       summarise(
-        Recettes_1 = sum(Recettes_1, na.rm = TRUE),
-        Recettes_2 = sum(Recettes_2, na.rm = TRUE),
-        Recettes_3 = sum(Recettes_3, na.rm = TRUE)
+        Recettes_1 = round(sum(Recettes_1, na.rm = TRUE),2),
+        Recettes_2 = round(sum(Recettes_2, na.rm = TRUE),2),
+        Recettes_3 = round(sum(Recettes_3, na.rm = TRUE),2)
       ) %>%
-      plot_ly(labels = ~c("Recettes strictement forestières", "Recettes partiellement dédiées à la forêt", "Recettes autres"),
+      plot_ly(labels = ~c("Strictement forestières", "Partiellement dédiées à la forêt", "Autres"),
               values = ~c(Recettes_1, Recettes_2, Recettes_3),
               type = 'pie',
               textinfo = 'label+percent',
               insidetextorientation = 'radial') %>%
       layout(title = 'Répartition des recettes')
+  })
+  # Créer les graphiques en barres pour les recettes par hectare
+  output$bar_chart_revenues_per_hectare <- renderPlotly({
+    # Filtrer les données par les années sélectionnées
+    don_filtered <- don %>% filter(Année %in% input$annee)
+    
+    # Si aucune donnée disponible sur les années sélectionnées, alors notification d'erreur
+    if (nrow(don_filtered) == 0) {
+      showNotification("Erreur : Aucune donnée disponible pour les années sélectionnées.", type = "error")
+      return(NULL)
+    }
+    
+    # Calculer la moyenne des recettes par hectare pour chaque année
+    moyenne_recettes_par_annee <- don_filtered %>%
+      group_by(Année) %>%
+      summarise(Recettes_par_hectares = round(mean(Recettes_par_hectares, na.rm = TRUE)),2)
+    moyenne_recettes_par_annee$Année <- as.factor(moyenne_recettes_par_annee$Année)
+    
+    # Créer le graphique en barres avec plotly
+    plot_ly(moyenne_recettes_par_annee, x = ~Année, y = ~Recettes_par_hectares, type = 'bar', width = 0.2) %>%
+      layout(title = 'Évolution des recettes forestières par hectare',
+             xaxis = list(title = 'Année'),
+             yaxis = list(title = 'Recettes par hectare (euros)'))
+  })
+  
+  # Créer les graphiques en barres pour les dépenses par hectare
+  output$bar_chart_expenses_per_hectare <- renderPlotly({
+    # Filtrer les données par les années sélectionnées
+    don_filtered <- don %>% filter(Année %in% input$annee)
+    
+    # Si aucune donnée disponible sur les années sélectionnées, alors notification d'erreur
+    if (nrow(don_filtered) == 0) {
+      showNotification("Erreur : Aucune donnée disponible pour les années sélectionnées.", type = "error")
+      return(NULL)
+    }
+    
+    # Calculer la moyenne des dépenses par hectare pour chaque année
+    moyenne_depenses_par_annee <- don_filtered %>%
+      group_by(Année) %>%
+      summarise(Depenses_par_hectares = round(mean(Depenses_par_hectares, na.rm = TRUE)),2)
+    moyenne_depenses_par_annee$Année <- as.factor(moyenne_depenses_par_annee$Année)
+    # Créer le graphique en barres avec plotly
+    plot_ly(moyenne_depenses_par_annee, x = ~Année, y = ~Depenses_par_hectares, type = 'bar', width = 0.2) %>%
+      layout(title = 'Évolution des dépenses forestières par hectare',
+             xaxis = list(title = 'Année'),
+             yaxis = list(title = 'Dépenses par hectare (euros)'))
   })
 }
 
